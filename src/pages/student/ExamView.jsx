@@ -103,13 +103,31 @@ export default function ExamView() {
         sessionRef.current = sessionData
         setTabSwitchCount(sessionData.tab_switch_count)
         
-        // Initialize timer
+        // Initialize timer with Server Time Sync to prevent client clock skew
         if (assignData.duration_minutes) {
+          // Fetch server time to calculate offset
+          let serverTimeOffset = 0
+          try {
+            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/health`)
+            const serverDateStr = res.headers.get('date')
+            if (serverDateStr) {
+              const serverTime = new Date(serverDateStr).getTime()
+              serverTimeOffset = serverTime - Date.now()
+              console.log('[ExamPro] Server time offset:', serverTimeOffset, 'ms')
+            }
+          } catch (e) {
+            console.warn('Could not fetch server time for sync:', e)
+          }
+
+          const currentServerTime = Date.now() + serverTimeOffset
           const startTime = new Date(sessionData.started_at).getTime()
           const durationMs = assignData.duration_minutes * 60 * 1000
           const endTime = startTime + durationMs
-          const remainingSeconds = Math.max(0, Math.floor((endTime - Date.now()) / 1000))
+          const remainingSeconds = Math.max(0, Math.floor((endTime - currentServerTime) / 1000))
+          
           setTimeLeft(remainingSeconds)
+          // Store offset globally for setInterval
+          window.serverTimeOffset = serverTimeOffset
         }
 
         if (sessionData.is_locked) {
@@ -165,7 +183,7 @@ export default function ExamView() {
   }
 
   useEffect(() => {
-    if (timeLeft === null || isLocked) return
+    if (timeLeft === null || isLocked || !assignment || !session) return
 
     if (timeLeft <= 0) {
       console.log('[ExamPro] Time is up! Locking exam.')
@@ -174,11 +192,18 @@ export default function ExamView() {
     }
 
     const timer = setInterval(() => {
-      setTimeLeft(prev => (prev > 0 ? prev - 1 : 0))
+      // Recalculate exactly from current time to prevent Safari background throttling drift
+      const currentServerTime = Date.now() + (window.serverTimeOffset || 0)
+      const startTime = new Date(session.started_at).getTime()
+      const durationMs = assignment.duration_minutes * 60 * 1000
+      const endTime = startTime + durationMs
+      const remainingSeconds = Math.max(0, Math.floor((endTime - currentServerTime) / 1000))
+      
+      setTimeLeft(remainingSeconds)
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [timeLeft, isLocked])
+  }, [timeLeft, isLocked, assignment, session])
 
   // Navigation and back button prevention
   useEffect(() => {

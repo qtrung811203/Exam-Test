@@ -97,6 +97,16 @@ CREATE POLICY "Students can update own sessions"
   ON public.exam_sessions FOR UPDATE
   USING (student_id = auth.uid());
 
+CREATE POLICY "Teachers can delete sessions of their assignments"
+  ON public.exam_sessions FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.assignments 
+      WHERE assignments.id = exam_sessions.assignment_id 
+      AND assignments.teacher_id = auth.uid()
+    )
+  );
+
 -- Tab violations: students can insert their own, teachers can view all
 CREATE POLICY "View tab violations"
   ON public.tab_violations FOR SELECT
@@ -106,6 +116,17 @@ CREATE POLICY "View tab violations"
       WHERE exam_sessions.id = tab_violations.session_id
       AND (exam_sessions.student_id = auth.uid()
            OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'teacher'))
+    )
+  );
+
+CREATE POLICY "Teachers can delete tab violations of their assignments"
+  ON public.tab_violations FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.exam_sessions
+      JOIN public.assignments ON assignments.id = exam_sessions.assignment_id
+      WHERE exam_sessions.id = tab_violations.session_id
+      AND assignments.teacher_id = auth.uid()
     )
   );
 

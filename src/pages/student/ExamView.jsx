@@ -18,17 +18,26 @@ export default function ExamView() {
   
   const [assignment, setAssignment] = useState(null)
   const [session, setSession] = useState(null)
-  const [numPages, setNumPages] = useState(null)
-  const [pageNumber, setPageNumber] = useState(1)
   const [loading, setLoading] = useState(true)
   const [isLocked, setIsLocked] = useState(false)
   const [tabSwitchCount, setTabSwitchCount] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
   const [warningMessage, setWarningMessage] = useState('')
+  const [numPages, setNumPages] = useState(null)
+  const [pageNumber, setPageNumber] = useState(1)
   const [pdfWidth, setPdfWidth] = useState(800)
+  const [timeLeft, setTimeLeft] = useState(null)
   
   const sessionRef = useRef(null)
   const containerRef = useRef(null)
+  const MAX_TAB_SWITCHES = 4
+
+  const formatTime = (seconds) => {
+    if (seconds <= 0) return '00:00'
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
 
   // Responsive PDF width
   useEffect(() => {
@@ -94,6 +103,15 @@ export default function ExamView() {
         sessionRef.current = sessionData
         setTabSwitchCount(sessionData.tab_switch_count)
         
+        // Initialize timer
+        if (assignData.duration_minutes) {
+          const startTime = new Date(sessionData.started_at).getTime()
+          const durationMs = assignData.duration_minutes * 60 * 1000
+          const endTime = startTime + durationMs
+          const remainingSeconds = Math.max(0, Math.floor((endTime - Date.now()) / 1000))
+          setTimeLeft(remainingSeconds)
+        }
+
         if (sessionData.is_locked) {
           setIsLocked(true)
         }
@@ -145,6 +163,22 @@ export default function ExamView() {
       lockExam(true) // Lock and redirect to dashboard
     }
   }
+
+  useEffect(() => {
+    if (timeLeft === null || isLocked) return
+
+    if (timeLeft <= 0) {
+      console.log('[ExamPro] Time is up! Locking exam.')
+      lockExam(true) // Auto-submit/redirect
+      return
+    }
+
+    const timer = setInterval(() => {
+      setTimeLeft(prev => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [timeLeft, isLocked])
 
   // Navigation and back button prevention
   useEffect(() => {
@@ -297,6 +331,20 @@ export default function ExamView() {
             <h3 className="text-white font-medium text-sm truncate max-w-md">{assignment?.title}</h3>
 
             <div className="flex items-center gap-3">
+              {/* Timer */}
+              {timeLeft !== null && (
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                  timeLeft < 60 
+                    ? 'bg-red-500/20 text-red-400 border-red-500/30 animate-pulse' 
+                    : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                }`}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{formatTime(timeLeft)}</span>
+                </div>
+              )}
+
               <button
                 onClick={handleComplete}
                 className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold rounded-lg shadow-lg shadow-emerald-500/20 transition-all cursor-pointer mr-2"

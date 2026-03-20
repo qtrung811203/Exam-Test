@@ -15,7 +15,8 @@ function AppRoutes() {
     // Refresh context on every page access as requested
     console.log('AppRoutes: route changed, refreshing auth context...', location.pathname)
     refreshAuth()
-  }, [location.pathname, refreshAuth])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname])
 
   if (loading) {
     return (

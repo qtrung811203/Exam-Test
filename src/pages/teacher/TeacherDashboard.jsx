@@ -14,6 +14,7 @@ export default function TeacherDashboard() {
   const [showUpload, setShowUpload] = useState(false)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadDesc, setUploadDesc] = useState('')
+  const [uploadDuration, setUploadDuration] = useState(60) // Default 60 mins
   const [uploadFile, setUploadFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
@@ -97,6 +98,7 @@ export default function TeacherDashboard() {
           teacher_id: profile.id,
           title: uploadTitle,
           description: uploadDesc,
+          duration_minutes: parseInt(uploadDuration),
           pdf_url: urlData.publicUrl,
         })
 
@@ -104,6 +106,7 @@ export default function TeacherDashboard() {
 
       setUploadTitle('')
       setUploadDesc('')
+      setUploadDuration(60)
       setUploadFile(null)
       setShowUpload(false)
       await fetchData()
@@ -124,7 +127,7 @@ export default function TeacherDashboard() {
       // Internal email format for Supabase auth - use a robust dummy format
       const cleanUsername = accEmail.trim().replace(/\s+/g, '')
       const internalEmail = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@student.exam`
-      
+
       const accountClient = createAccountClient()
       const { error } = await accountClient.auth.signUp({
         email: internalEmail,
@@ -244,6 +247,19 @@ export default function TeacherDashboard() {
                   placeholder="Mô tả ngắn về bài tập..."
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Thời gian làm bài (phút)</label>
+                <input
+                  type="number"
+                  value={uploadDuration}
+                  onChange={(e) => setUploadDuration(e.target.value)}
+                  className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  placeholder="Ví dụ: 60"
+                  min="1"
+                  required
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">File PDF</label>
                 <input
@@ -278,31 +294,28 @@ export default function TeacherDashboard() {
         <div className="flex gap-4 bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-2xl p-2.5 mb-16 w-fit">
           <button
             onClick={() => setActiveTab('assignments')}
-            className={`px-6 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-              activeTab === 'assignments'
-                ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
-                : 'text-gray-400 hover:text-white'
-            }`}
+            className={`px-6 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${activeTab === 'assignments'
+              ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+              : 'text-gray-400 hover:text-white'
+              }`}
           >
             📄 Bài tập ({assignments.length})
           </button>
           <button
             onClick={() => setActiveTab('monitor')}
-            className={`px-6 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-              activeTab === 'monitor'
-                ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
-                : 'text-gray-400 hover:text-white'
-            }`}
+            className={`px-6 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${activeTab === 'monitor'
+              ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+              : 'text-gray-400 hover:text-white'
+              }`}
           >
             👁️ Giám sát ({sessions.length})
           </button>
           <button
             onClick={() => setActiveTab('accounts')}
-            className={`px-6 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-              activeTab === 'accounts'
-                ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
-                : 'text-gray-400 hover:text-white'
-            }`}
+            className={`px-6 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${activeTab === 'accounts'
+              ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+              : 'text-gray-400 hover:text-white'
+              }`}
           >
             👤 Tài khoản
           </button>
@@ -328,7 +341,7 @@ export default function TeacherDashboard() {
                         <p className="text-gray-500 text-sm mt-2">{a.description}</p>
                       )}
                       <p className="text-gray-600 text-xs mt-3">
-                        📅 {new Date(a.created_at).toLocaleDateString('vi-VN', { 
+                        📅 {new Date(a.created_at).toLocaleDateString('vi-VN', {
                           day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                         })}
                       </p>
@@ -495,11 +508,10 @@ export default function TeacherDashboard() {
                     <button
                       type="button"
                       onClick={() => setAccRole('student')}
-                      className={`p-5 rounded-xl border-2 transition-all duration-200 cursor-pointer text-center ${
-                        accRole === 'student'
-                          ? 'border-indigo-500 bg-indigo-500/10 text-white'
-                          : 'border-gray-700 bg-gray-800/30 text-gray-400 hover:border-gray-600'
-                      }`}
+                      className={`p-5 rounded-xl border-2 transition-all duration-200 cursor-pointer text-center ${accRole === 'student'
+                        ? 'border-indigo-500 bg-indigo-500/10 text-white'
+                        : 'border-gray-700 bg-gray-800/30 text-gray-400 hover:border-gray-600'
+                        }`}
                     >
                       <span className="text-2xl block mb-2">🎓</span>
                       <span className="text-sm font-medium">Học sinh</span>
@@ -507,11 +519,10 @@ export default function TeacherDashboard() {
                     <button
                       type="button"
                       onClick={() => setAccRole('teacher')}
-                      className={`p-5 rounded-xl border-2 transition-all duration-200 cursor-pointer text-center ${
-                        accRole === 'teacher'
-                          ? 'border-purple-500 bg-purple-500/10 text-white'
-                          : 'border-gray-700 bg-gray-800/30 text-gray-400 hover:border-gray-600'
-                      }`}
+                      className={`p-5 rounded-xl border-2 transition-all duration-200 cursor-pointer text-center ${accRole === 'teacher'
+                        ? 'border-purple-500 bg-purple-500/10 text-white'
+                        : 'border-gray-700 bg-gray-800/30 text-gray-400 hover:border-gray-600'
+                        }`}
                     >
                       <span className="text-2xl block mb-2">👨‍🏫</span>
                       <span className="text-sm font-medium">Giáo viên</span>

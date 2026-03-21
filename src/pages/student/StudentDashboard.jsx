@@ -77,19 +77,26 @@ export default function StudentDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-9">
             {assignments.map((a) => {
               const session = sessions[a.id]
-              const isLocked = session?.is_locked
+              const isLocked = session?.is_locked || session?.status === 'locked'
+              const isCompleted = session?.status === 'completed'
+              const isTerminated = isLocked || isCompleted
 
               return (
-                <div key={a.id} className={`bg-gray-900/60 backdrop-blur-xl border rounded-3xl p-9 transition-all duration-300 group ${isLocked
-                  ? 'border-red-500/30 opacity-75'
+                <div key={a.id} className={`bg-gray-900/60 backdrop-blur-xl border rounded-3xl p-9 transition-all duration-300 group ${isTerminated
+                  ? (isCompleted ? 'border-emerald-500/30 opacity-90' : 'border-red-500/30 opacity-75')
                   : 'border-gray-800 hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-500/10'
                   }`}>
                   {/* PDF Icon */}
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-5 ${isLocked
-                    ? 'bg-red-500/10'
-                    : 'bg-indigo-500/10 group-hover:bg-indigo-500/20'
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-5 ${
+                    isCompleted ? 'bg-emerald-500/10' :
+                    isLocked ? 'bg-red-500/10' :
+                    'bg-indigo-500/10 group-hover:bg-indigo-500/20'
                     } transition-colors`}>
-                    {isLocked ? (
+                    {isCompleted ? (
+                      <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : isLocked ? (
                       <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                       </svg>
@@ -121,9 +128,13 @@ export default function StudentDashboard() {
                   {/* Session status */}
                   {session && (
                     <div className="mb-5 flex items-center gap-2">
-                      {isLocked ? (
+                      {isCompleted ? (
+                        <span className="text-xs px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full font-medium">
+                          ✅ Đã hoàn thành ({session.tab_switch_count}/4 lần chuyển tab)
+                        </span>
+                      ) : isLocked ? (
                         <span className="text-xs px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/20 rounded-full font-medium">
-                          🔒 Đã bị khóa ({session.tab_switch_count} lần chuyển tab & Nộp bài)
+                          🔒 Đã bị khóa ({session.tab_switch_count} lần chuyển tab)
                         </span>
                       ) : (
                         <span className="text-xs px-3 py-1.5 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded-full font-medium">
@@ -134,7 +145,11 @@ export default function StudentDashboard() {
                   )}
 
                   {/* Action button */}
-                  {isLocked ? (
+                  {isCompleted ? (
+                    <div className="w-full py-3.5 bg-emerald-500/10 text-emerald-400 text-sm font-medium rounded-xl text-center border border-emerald-500/20">
+                      Đã nộp bài
+                    </div>
+                  ) : isLocked ? (
                     <div className="w-full py-3.5 bg-red-500/10 text-red-400 text-sm font-medium rounded-xl text-center border border-red-500/20">
                       Không thể xem bài
                     </div>

@@ -86,7 +86,8 @@ export default function ExamView() {
               student_id: profile.id, 
               assignment_id: assignmentId,
               tab_switch_count: 0,
-              is_locked: false
+              is_locked: false,
+              status: 'in_progress'
             })
             .select()
             .single()
@@ -130,7 +131,7 @@ export default function ExamView() {
           window.serverTimeOffset = serverTimeOffset
         }
 
-        if (sessionData.is_locked) {
+        if (sessionData.is_locked || sessionData.status === 'completed' || sessionData.status === 'locked') {
           setIsLocked(true)
         }
       } catch (err) {
@@ -144,15 +145,19 @@ export default function ExamView() {
   }, [assignmentId, profile?.id])
 
   // Centralized lock function
-  const lockExam = async (shouldRedirect = false) => {
+  const lockExam = async (reason = 'locked', shouldRedirect = false) => {
     if (isLocked || !sessionRef.current) return
 
-    console.log('[ExamPro] Locking exam...')
+    console.log(`[ExamPro] Terminating exam with reason: ${reason}...`)
     
     const updateData = { 
       is_locked: true, 
-      tab_switch_count: MAX_TAB_SWITCHES,
+      status: reason,
       locked_at: new Date().toISOString()
+    }
+
+    if (reason === 'locked') {
+      updateData.tab_switch_count = MAX_TAB_SWITCHES
     }
 
     const { data: updatedSession, error: updateErr } = await supabase
@@ -164,7 +169,9 @@ export default function ExamView() {
 
     if (!updateErr) {
       sessionRef.current = updatedSession
-      setTabSwitchCount(MAX_TAB_SWITCHES)
+      if (reason === 'locked') {
+        setTabSwitchCount(MAX_TAB_SWITCHES)
+      }
       setIsLocked(true)
       if (shouldRedirect) navigate('/student')
     }
@@ -172,13 +179,13 @@ export default function ExamView() {
 
   const handleBackClick = () => {
     if (window.confirm('CẢNH BÁO: Nếu bạn quay lại, bài thi sẽ bị KHÓA ngay lập tức và không thể tiếp tục. Bạn có chắc chắn muốn thoát?')) {
-      lockExam()
+      lockExam('locked')
     }
   }
 
   const handleComplete = () => {
     if (window.confirm('Xác nhận nộp bài và kết thúc bài thi?')) {
-      lockExam(true) // Lock and redirect to dashboard
+      lockExam('completed', true) // Complete and redirect to dashboard
     }
   }
 
@@ -186,8 +193,8 @@ export default function ExamView() {
     if (timeLeft === null || isLocked || !assignment || !session) return
 
     if (timeLeft <= 0) {
-      console.log('[ExamPro] Time is up! Locking exam.')
-      lockExam(true) // Auto-submit/redirect
+      console.log('[ExamPro] Time is up! Completing exam.')
+      lockExam('completed', true) // Auto-submit/redirect
       return
     }
 
@@ -217,7 +224,7 @@ export default function ExamView() {
       // So we'll lock immediately as per "Zero Tolerance" but stay on page
       if (!isLocked) {
         console.warn('[ExamPro] Back button detected! Locking exam.')
-        lockExam()
+        lockExam('locked')
         window.history.pushState(null, '', window.location.href)
       }
     }
@@ -252,6 +259,7 @@ export default function ExamView() {
       const updateData = { tab_switch_count: newCount }
       if (newCount >= MAX_TAB_SWITCHES) {
         updateData.is_locked = true
+        updateData.status = 'locked'
         updateData.locked_at = new Date().toISOString()
       }
 
@@ -309,7 +317,7 @@ export default function ExamView() {
     )
   }
 
-  // Locked screen
+  // Terminated screen (locked)
   if (isLocked) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
@@ -319,12 +327,12 @@ export default function ExamView() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-red-400 mb-3">Bài thi đã bị khóa</h2>
+          <h2 className="text-2xl font-bold text-red-400 mb-3">Bài thi đã kết thúc</h2>
           <p className="text-gray-400 mb-2">
             Bạn đã chuyển tab <span className="text-red-400 font-bold">{tabSwitchCount}</span> lần.
           </p>
           <p className="text-gray-500 text-sm mb-6">
-            Vượt quá giới hạn cho phép ({MAX_TAB_SWITCHES} lần). Bạn không thể tiếp tục bài thi này.
+            Bài thi đã được khóa lại và bạn không thể tiếp tục.
           </p>
           <button
             onClick={() => navigate('/student')}

@@ -28,6 +28,7 @@ CREATE TABLE public.exam_sessions (
   assignment_id UUID REFERENCES public.assignments(id) ON DELETE CASCADE NOT NULL,
   tab_switch_count INTEGER DEFAULT 0,
   is_locked BOOLEAN DEFAULT false,
+  status TEXT DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed', 'locked')),
   started_at TIMESTAMPTZ DEFAULT now(),
   locked_at TIMESTAMPTZ,
   UNIQUE(student_id, assignment_id)

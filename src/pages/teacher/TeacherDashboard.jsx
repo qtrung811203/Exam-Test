@@ -176,8 +176,8 @@ export default function TeacherDashboard() {
     }
   }
 
-  const getViolationBadge = (count, isLocked) => {
-    if (isLocked) return 'bg-red-500/20 text-red-400 border-red-500/30'
+  const getViolationBadge = (count, isLocked, status) => {
+    if (isLocked || status === 'locked') return 'bg-red-500/20 text-red-400 border-red-500/30'
     if (count >= 3) return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
     if (count >= 1) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
     return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
@@ -409,18 +409,22 @@ export default function TeacherDashboard() {
                         </td>
                         <td className="px-8 py-6 text-gray-400 text-sm">{s.assignments?.title || '—'}</td>
                         <td className="px-8 py-6 text-center">
-                          <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold border ${getViolationBadge(s.tab_switch_count, s.is_locked)}`}>
+                          <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold border ${getViolationBadge(s.tab_switch_count, s.is_locked, s.status)}`}>
                             {s.tab_switch_count} lần
                           </span>
                         </td>
                         <td className="px-8 py-6 text-center">
-                          {s.is_locked ? (
+                          {s.status === 'completed' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-full text-xs font-medium border border-emerald-500/20">
+                              ✅ Đã nộp
+                            </span>
+                          ) : s.is_locked || s.status === 'locked' ? (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-full text-xs font-medium border border-red-500/20">
                               🔒 Đã khóa
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-full text-xs font-medium border border-emerald-500/20">
-                              ✅ Đang làm
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-full text-xs font-medium border border-blue-500/20">
+                              ⏳ Đang làm
                             </span>
                           )}
                         </td>

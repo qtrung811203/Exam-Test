@@ -15,6 +15,8 @@ export default function TeacherDashboard() {
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadDesc, setUploadDesc] = useState('')
   const [uploadDuration, setUploadDuration] = useState(60) // Default 60 mins
+  const [uploadAvailableFrom, setUploadAvailableFrom] = useState('')
+  const [uploadAvailableUntil, setUploadAvailableUntil] = useState('')
   const [uploadFile, setUploadFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
@@ -99,6 +101,8 @@ export default function TeacherDashboard() {
           title: uploadTitle,
           description: uploadDesc,
           duration_minutes: parseInt(uploadDuration),
+          available_from: uploadAvailableFrom ? new Date(uploadAvailableFrom).toISOString() : null,
+          available_until: uploadAvailableUntil ? new Date(uploadAvailableUntil).toISOString() : null,
           pdf_url: urlData.publicUrl,
         })
 
@@ -107,6 +111,8 @@ export default function TeacherDashboard() {
       setUploadTitle('')
       setUploadDesc('')
       setUploadDuration(60)
+      setUploadAvailableFrom('')
+      setUploadAvailableUntil('')
       setUploadFile(null)
       setShowUpload(false)
       await fetchData()
@@ -260,6 +266,26 @@ export default function TeacherDashboard() {
                   required
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Mở đề lúc (tùy chọn)</label>
+                  <input
+                    type="datetime-local"
+                    value={uploadAvailableFrom}
+                    onChange={(e) => setUploadAvailableFrom(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Đóng đề lúc (tùy chọn)</label>
+                  <input
+                    type="datetime-local"
+                    value={uploadAvailableUntil}
+                    onChange={(e) => setUploadAvailableUntil(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">File PDF</label>
                 <input
@@ -340,11 +366,21 @@ export default function TeacherDashboard() {
                       {a.description && (
                         <p className="text-gray-500 text-sm mt-2">{a.description}</p>
                       )}
-                      <p className="text-gray-600 text-xs mt-3">
-                        📅 {new Date(a.created_at).toLocaleDateString('vi-VN', {
-                          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                        })}
-                      </p>
+                      <div className="flex flex-col gap-1 mt-3">
+                        <p className={`text-xs font-medium ${a.available_from ? 'text-indigo-400' : 'text-emerald-400'}`}>
+                          {a.available_from ? `Mở: ${new Date(a.available_from).toLocaleString('vi-VN')}` : 'Mùa thi tự do (không giới hạn)'}
+                        </p>
+                        {a.available_until && (
+                          <p className="text-red-400 text-xs font-medium">
+                            Đóng: {new Date(a.available_until).toLocaleString('vi-VN')}
+                          </p>
+                        )}
+                        <p className="text-gray-600 text-xs mt-1">
+                          📅 {new Date(a.created_at).toLocaleDateString('vi-VN', {
+                            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3 ml-6">
                       <a

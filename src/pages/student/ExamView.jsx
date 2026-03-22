@@ -69,6 +69,16 @@ export default function ExamView() {
         if (assignErr) throw assignErr
         setAssignment(assignData)
 
+        // Check scheduling bounds
+        const now = new Date()
+        const availableFrom = assignData.available_from ? new Date(assignData.available_from) : null
+        const availableUntil = assignData.available_until ? new Date(assignData.available_until) : null
+        if ((availableFrom && now < availableFrom) || (availableUntil && now > availableUntil)) {
+          alert('Truy cập bị từ chối: Bài thi không trong thời gian cho phép.')
+          navigate('/student')
+          return
+        }
+
         // 1. Try to fetch existing session first
         let { data: sessionData, error: fetchErr } = await supabase
           .from('exam_sessions')

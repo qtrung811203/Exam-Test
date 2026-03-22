@@ -81,6 +81,13 @@ export default function StudentDashboard() {
               const isCompleted = session?.status === 'completed'
               const isTerminated = isLocked || isCompleted
 
+              const now = new Date()
+              const availableFrom = a.available_from ? new Date(a.available_from) : null
+              const availableUntil = a.available_until ? new Date(a.available_until) : null
+              
+              const isUpcoming = availableFrom && now < availableFrom
+              const isExpired = availableUntil && now > availableUntil
+
               return (
                 <div key={a.id} className={`bg-gray-900/60 backdrop-blur-xl border rounded-3xl p-9 transition-all duration-300 group ${isTerminated
                   ? (isCompleted ? 'border-emerald-500/30 opacity-90' : 'border-red-500/30 opacity-75')
@@ -152,6 +159,14 @@ export default function StudentDashboard() {
                   ) : isLocked ? (
                     <div className="w-full py-3.5 bg-red-500/10 text-red-400 text-sm font-medium rounded-xl text-center border border-red-500/20">
                       Không thể xem bài
+                    </div>
+                  ) : isUpcoming ? (
+                    <div className="w-full py-3.5 bg-yellow-500/10 text-yellow-400 text-sm font-medium rounded-xl text-center border border-yellow-500/20">
+                      Sẽ mở lúc {availableFrom.toLocaleString('vi-VN')}
+                    </div>
+                  ) : isExpired ? (
+                    <div className="w-full py-3.5 bg-gray-800 text-gray-400 text-sm font-medium rounded-xl text-center border border-gray-700">
+                      Đã kết thúc lúc {availableUntil.toLocaleString('vi-VN')}
                     </div>
                   ) : (
                     <Link

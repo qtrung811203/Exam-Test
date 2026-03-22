@@ -18,6 +18,9 @@ CREATE TABLE public.assignments (
   title TEXT NOT NULL,
   description TEXT,
   pdf_url TEXT NOT NULL,
+  duration_minutes INTEGER DEFAULT 60,
+  available_from TIMESTAMPTZ,
+  available_until TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

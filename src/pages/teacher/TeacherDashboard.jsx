@@ -33,6 +33,24 @@ export default function TeacherDashboard() {
   const [editing, setEditing] = useState(false)
   const [editError, setEditError] = useState('')
 
+  // Monitor filters state
+  const [filterStudent, setFilterStudent] = useState('')
+  const [filterExam, setFilterExam] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+
+  // Accounts list state
+  const [accountsList, setAccountsList] = useState([])
+
+  // Account update state
+  const [showEditAcc, setShowEditAcc] = useState(false)
+  const [editAccId, setEditAccId] = useState(null)
+  const [editAccFullName, setEditAccFullName] = useState('')
+  const [editAccRole, setEditAccRole] = useState('student')
+  const [editAccPassword, setEditAccPassword] = useState('')
+  const [editAccLoading, setEditAccLoading] = useState(false)
+  const [editAccError, setEditAccError] = useState('')
+  const [editAccSuccess, setEditAccSuccess] = useState('')
+
   // Account creation state
   const [showCreateAccount, setShowCreateAccount] = useState(false)
   const [accEmail, setAccEmail] = useState('')
@@ -76,7 +94,16 @@ export default function TeacherDashboard() {
           .order('started_at', { ascending: false })
 
         setSessions(sessionData || [])
+      } else {
+        setSessions([])
       }
+
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      setAccountsList(profilesData || [])
     } catch (err) {
       console.error('Error fetching data:', err)
     } finally {
@@ -248,11 +275,56 @@ export default function TeacherDashboard() {
       setAccFullName('')
       setAccRole('student')
 
+      await fetchData()
+
       setTimeout(() => setAccSuccess(''), 5000)
     } catch (err) {
       setAccError(err.message)
     } finally {
       setAccLoading(false)
+    }
+  }
+
+  const openEditAccModal = (acc) => {
+    setEditAccId(acc.id)
+    setEditAccFullName(acc.full_name || '')
+    setEditAccRole(acc.role || 'student')
+    setEditAccPassword('')
+    setEditAccError('')
+    setEditAccSuccess('')
+    setShowEditAcc(true)
+  }
+
+  const handleUpdateAcc = async (e) => {
+    e.preventDefault()
+    setEditAccLoading(true)
+    setEditAccError('')
+    setEditAccSuccess('')
+
+    try {
+      const { error } = await supabase.rpc('admin_update_user', {
+        target_user_id: editAccId,
+        new_full_name: editAccFullName,
+        new_role: editAccRole,
+        new_password: editAccPassword || null
+      })
+
+      if (error) {
+        throw error
+      }
+
+      setEditAccSuccess(`Cập nhật thành công cho ${editAccFullName}!`)
+      await fetchData()
+
+      setTimeout(() => {
+        setEditAccSuccess('')
+        setShowEditAcc(false)
+        setEditAccId(null)
+      }, 3000)
+    } catch (err) {
+      setEditAccError(err.message)
+    } finally {
+      setEditAccLoading(false)
     }
   }
 
@@ -277,6 +349,24 @@ export default function TeacherDashboard() {
     if (count >= 1) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
     return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
   }
+
+  // Compute monitor filters
+  const uniqueStudents = [...new Map(sessions.map(s => [s.student_id, s.profiles?.full_name])).entries()]
+  const uniqueExams = [...new Map(sessions.map(s => [s.assignment_id, s.assignments?.title])).entries()]
+
+  const filteredSessions = sessions.filter(s => {
+    const matchStudent = filterStudent ? s.student_id === filterStudent : true
+    const matchExam = filterExam ? s.assignment_id === filterExam : true
+    
+    let matchStatus = true
+    if (filterStatus) {
+      if (filterStatus === 'completed') matchStatus = s.status === 'completed'
+      else if (filterStatus === 'locked') matchStatus = s.is_locked || s.status === 'locked'
+      else if (filterStatus === 'in_progress') matchStatus = s.status !== 'completed' && !(s.is_locked || s.status === 'locked')
+    }
+    
+    return matchStudent && matchExam && matchStatus
+  })
 
   if (loading) {
     return (
@@ -611,14 +701,48 @@ export default function TeacherDashboard() {
 
         {/* Monitor Tab */}
         {activeTab === 'monitor' && (
-          <div className="bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-2xl overflow-hidden">
-            {sessions.length === 0 ? (
-              <div className="text-center py-20">
-                <p className="text-gray-500 text-lg">Chưa có phiên thi nào</p>
-                <p className="text-gray-600 text-sm mt-2">Học sinh sẽ xuất hiện khi bắt đầu làm bài</p>
+          <div className="bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-2xl overflow-hidden p-6">
+            <div className="flex flex-wrap gap-4 mb-6">
+              <select 
+                value={filterStudent} 
+                onChange={e => setFilterStudent(e.target.value)}
+                className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white"
+              >
+                <option value="">Tất cả học sinh</option>
+                {uniqueStudents.map(([id, name]) => (
+                  <option key={id} value={id}>{name || 'Unknown'}</option>
+                ))}
+              </select>
+
+              <select 
+                value={filterExam} 
+                onChange={e => setFilterExam(e.target.value)}
+                className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white"
+              >
+                <option value="">Tất cả bài tập</option>
+                {uniqueExams.map(([id, title]) => (
+                  <option key={id} value={id}>{title || 'Unknown'}</option>
+                ))}
+              </select>
+
+              <select 
+                value={filterStatus} 
+                onChange={e => setFilterStatus(e.target.value)}
+                className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="in_progress">⏳ Đang làm</option>
+                <option value="completed">✅ Đã nộp</option>
+                <option value="locked">🔒 Đã khóa</option>
+              </select>
+            </div>
+
+            {filteredSessions.length === 0 ? (
+              <div className="text-center py-20 bg-gray-900/40 border border-gray-800 rounded-2xl">
+                <p className="text-gray-500 text-lg">Không tìm thấy phiên thi nào</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto border border-gray-800 rounded-xl">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-800">
@@ -630,7 +754,7 @@ export default function TeacherDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800/50">
-                    {sessions.map((s) => (
+                    {filteredSessions.map((s) => (
                       <tr key={s.id} className="hover:bg-gray-800/30 transition-colors">
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-3">
@@ -680,11 +804,95 @@ export default function TeacherDashboard() {
 
         {/* Accounts Tab */}
         {activeTab === 'accounts' && (
-          <div>
-            {/* Create Account Form */}
-            <div className="bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-2xl p-8 shadow-2xl max-w-lg">
-              <h3 className="text-lg font-semibold text-white mb-2">Tạo tài khoản mới</h3>
-              <p className="text-gray-500 text-sm mb-8">Tạo tài khoản cho học sinh hoặc giáo viên khác</p>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            {/* Form Column */}
+            <div className="bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-2xl p-8 shadow-2xl lg:col-span-1">
+              {showEditAcc ? (
+                // Edit Account Form
+                <>
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-2">Chỉnh sửa tài khoản</h3>
+                      <p className="text-gray-500 text-sm">Cập nhật thông tin và mật khẩu</p>
+                    </div>
+                    <button onClick={() => setShowEditAcc(false)} className="text-gray-400 hover:text-white cursor-pointer">✕</button>
+                  </div>
+
+                  {editAccError && (
+                    <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-center gap-3">
+                      {editAccError}
+                    </div>
+                  )}
+
+                  {editAccSuccess && (
+                    <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm flex items-center gap-3">
+                      {editAccSuccess}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleUpdateAcc} className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Họ và tên</label>
+                      <input
+                        type="text"
+                        value={editAccFullName}
+                        onChange={(e) => setEditAccFullName(e.target.value)}
+                        required
+                        className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Mật khẩu mới (bỏ trống nếu không đổi)</label>
+                      <input
+                        type="text"
+                        value={editAccPassword}
+                        onChange={(e) => setEditAccPassword(e.target.value)}
+                        minLength={6}
+                        className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                        placeholder="Nhập mật khẩu mới"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-3">Vai trò</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setEditAccRole('student')}
+                          className={`p-5 rounded-xl border-2 transition-all duration-200 cursor-pointer text-center ${editAccRole === 'student'
+                            ? 'border-indigo-500 bg-indigo-500/10 text-white'
+                            : 'border-gray-700 bg-gray-800/30 text-gray-400 hover:border-gray-600'
+                            }`}
+                        >
+                          <span className="text-2xl block mb-2">🎓</span>
+                          <span className="text-sm font-medium">Học sinh</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditAccRole('teacher')}
+                          className={`p-5 rounded-xl border-2 transition-all duration-200 cursor-pointer text-center ${editAccRole === 'teacher'
+                            ? 'border-purple-500 bg-purple-500/10 text-white'
+                            : 'border-gray-700 bg-gray-800/30 text-gray-400 hover:border-gray-600'
+                            }`}
+                        >
+                          <span className="text-2xl block mb-2">👨‍🏫</span>
+                          <span className="text-sm font-medium">Giáo viên</span>
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={editAccLoading}
+                      className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-medium rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer mt-2"
+                    >
+                      {editAccLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
+                    </button>
+                  </form>
+                </>
+              ) : (
+                // Create Account Form
+                <>
+                  <h3 className="text-lg font-semibold text-white mb-2">Tạo tài khoản mới</h3>
+                  <p className="text-gray-500 text-sm mb-8">Tạo tài khoản cho học sinh hoặc giáo viên khác</p>
 
               {accError && (
                 <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-center gap-3">
@@ -781,6 +989,53 @@ export default function TeacherDashboard() {
                   )}
                 </button>
               </form>
+            </>
+          )}
+        </div>
+
+        {/* List Accounts */}
+            <div className="bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-2xl overflow-hidden lg:col-span-2">
+               <div className="p-6 border-b border-gray-800">
+                  <h3 className="text-lg font-semibold text-white">Danh sách tài khoản ({accountsList.length})</h3>
+               </div>
+               <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
+                 <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-800 sticky top-0 bg-gray-900/90 backdrop-blur-md z-10">
+                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-widest">Họ và tên</th>
+                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-widest">Vai trò</th>
+                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-widest">Ngày tạo</th>
+                        <th className="px-6 py-4"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800/50">
+                      {accountsList.map(acc => (
+                         <tr key={acc.id} className="hover:bg-gray-800/30 transition-colors">
+                            <td className="px-6 py-4 text-white text-sm font-medium">{acc.full_name || 'Unknown'}</td>
+                            <td className="px-6 py-4">
+                               <span className={`inline-flex px-2.5 py-1 rounded-md text-xs font-medium border ${acc.role === 'teacher' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
+                                 {acc.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                               </span>
+                            </td>
+                            <td className="px-6 py-4 text-gray-500 text-sm">
+                               {new Date(acc.created_at).toLocaleDateString('vi-VN')}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                               <button 
+                                  onClick={() => openEditAccModal(acc)}
+                                  className="p-1.5 text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-md transition-all cursor-pointer"
+                                  title="Chỉnh sửa tài khoản"
+                               >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                               </button>
+                            </td>
+                         </tr>
+                      ))}
+                    </tbody>
+                 </table>
+               </div>
             </div>
           </div>
         )}

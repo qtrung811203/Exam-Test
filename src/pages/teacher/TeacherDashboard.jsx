@@ -21,6 +21,18 @@ export default function TeacherDashboard() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
 
+  // Edit assignment state
+  const [showEdit, setShowEdit] = useState(false)
+  const [editingAssignment, setEditingAssignment] = useState(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDesc, setEditDesc] = useState('')
+  const [editDuration, setEditDuration] = useState(60)
+  const [editAvailableFrom, setEditAvailableFrom] = useState('')
+  const [editAvailableUntil, setEditAvailableUntil] = useState('')
+  const [editFile, setEditFile] = useState(null)
+  const [editing, setEditing] = useState(false)
+  const [editError, setEditError] = useState('')
+
   // Account creation state
   const [showCreateAccount, setShowCreateAccount] = useState(false)
   const [accEmail, setAccEmail] = useState('')
@@ -123,6 +135,83 @@ export default function TeacherDashboard() {
     }
   }
 
+  const formatForInput = (isoString) => {
+    if (!isoString) return ''
+    const d = new Date(isoString)
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    return d.toISOString().slice(0, 16)
+  }
+
+  const openEditModal = (a) => {
+    setEditingAssignment(a)
+    setEditTitle(a.title)
+    setEditDesc(a.description || '')
+    setEditDuration(a.duration_minutes || 60)
+    setEditAvailableFrom(formatForInput(a.available_from))
+    setEditAvailableUntil(formatForInput(a.available_until))
+    setEditFile(null)
+    setEditError('')
+    setShowEdit(true)
+    setShowUpload(false) // Close upload if open
+  }
+
+  const handleUpdate = async (e) => {
+    e.preventDefault()
+    if (!editingAssignment) return
+
+    setEditing(true)
+    setEditError('')
+
+    try {
+      let finalPdfUrl = editingAssignment.pdf_url
+
+      if (editFile) {
+        const fileExt = editFile.name.split('.').pop()
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+        const filePath = `pdfs/${fileName}`
+
+        const { error: uploadErr } = await supabase.storage
+          .from('assignments')
+          .upload(filePath, editFile)
+
+        if (uploadErr) throw uploadErr
+
+        const { data: urlData } = supabase.storage
+          .from('assignments')
+          .getPublicUrl(filePath)
+
+        finalPdfUrl = urlData.publicUrl
+
+        const oldPath = editingAssignment.pdf_url.split('/assignments/')[1]
+        if (oldPath) {
+          await supabase.storage.from('assignments').remove([oldPath])
+        }
+      }
+
+      const { error: updateErr } = await supabase
+        .from('assignments')
+        .update({
+          title: editTitle,
+          description: editDesc,
+          duration_minutes: parseInt(editDuration),
+          available_from: editAvailableFrom ? new Date(editAvailableFrom).toISOString() : null,
+          available_until: editAvailableUntil ? new Date(editAvailableUntil).toISOString() : null,
+          pdf_url: finalPdfUrl,
+        })
+        .eq('id', editingAssignment.id)
+
+      if (updateErr) throw updateErr
+
+      setShowEdit(false)
+      setEditingAssignment(null)
+      await fetchData()
+    } catch (err) {
+      setEditError(err.message)
+    } finally {
+      setEditing(false)
+    }
+  }
+
   const handleCreateAccount = async (e) => {
     e.preventDefault()
     setAccLoading(true)
@@ -212,7 +301,10 @@ export default function TeacherDashboard() {
             <p className="text-gray-400 mt-4 text-lg">Quản lý bài tập, tài khoản và giám sát học sinh</p>
           </div>
           <button
-            onClick={() => setShowUpload(!showUpload)}
+            onClick={() => {
+              setShowUpload(!showUpload)
+              setShowEdit(false) // toggle off edit modal
+            }}
             className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 text-white font-medium rounded-xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 transition-all duration-200 flex items-center gap-2 cursor-pointer"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -316,6 +408,102 @@ export default function TeacherDashboard() {
           </div>
         )}
 
+        {/* Edit Modal */}
+        {showEdit && (
+          <div className="mb-10 bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-2xl p-8 shadow-2xl animate-in">
+            <h3 className="text-lg font-semibold text-white mb-6">Chỉnh sửa bài tập</h3>
+            {editError && (
+              <div className="mb-5 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+                {editError}
+              </div>
+            )}
+            <form onSubmit={handleUpdate} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Tiêu đề</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  required
+                  className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  placeholder="VD: Đề kiểm tra Toán học kỳ 1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Mô tả (tuỳ chọn)</label>
+                <textarea
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-none"
+                  placeholder="Mô tả ngắn về bài tập..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Thời gian làm bài (phút)</label>
+                <input
+                  type="number"
+                  value={editDuration}
+                  onChange={(e) => setEditDuration(e.target.value)}
+                  className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  placeholder="Ví dụ: 60"
+                  min="1"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Mở đề lúc (tùy chọn)</label>
+                  <input
+                    type="datetime-local"
+                    value={editAvailableFrom}
+                    onChange={(e) => setEditAvailableFrom(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Đóng đề lúc (tùy chọn)</label>
+                  <input
+                    type="datetime-local"
+                    value={editAvailableUntil}
+                    onChange={(e) => setEditAvailableUntil(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Thay đổi File PDF (tùy chọn, để trống nếu giữ nguyên)</label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => setEditFile(e.target.files[0])}
+                  className="w-full px-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 file:cursor-pointer cursor-pointer"
+                />
+              </div>
+              <div className="flex gap-4 pt-3">
+                <button
+                  type="submit"
+                  disabled={editing}
+                  className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-medium rounded-xl shadow-lg shadow-emerald-500/30 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {editing ? 'Đang lưu...' : 'Lưu cập nhật'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEdit(false)
+                    setEditingAssignment(null)
+                  }}
+                  className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl border border-gray-700 transition-all cursor-pointer"
+                >
+                  Hủy
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="flex gap-4 bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-2xl p-2.5 mb-16 w-fit">
           <button
@@ -395,6 +583,15 @@ export default function TeacherDashboard() {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                       </a>
+                      <button
+                        onClick={() => openEditModal(a)}
+                        className="p-2.5 text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all cursor-pointer"
+                        title="Chỉnh sửa bài tập"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
                       <button
                         onClick={() => deleteAssignment(a.id, a.pdf_url)}
                         className="p-2.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
